@@ -72,6 +72,16 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     if (changed == true) _load();
   }
 
+  // Reload the list whenever we come back from Settings, so a restore
+  // (or any other change made there) shows up immediately.
+  Future<void> _openSettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+    if (mounted) await _load();
+  }
+
   Future<void> _togglePaid(Invoice inv) async {
     await DbHelper.instance.setPaid(inv.id!, !inv.paid);
     _load();
@@ -135,10 +145,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Business settings',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed: _openSettings,
           ),
         ],
       ),

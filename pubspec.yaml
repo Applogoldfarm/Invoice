@@ -42,7 +42,10 @@ dependencies:
   share_plus: ^13.3.1
   image_picker: ^1.2.4
   intl: ^0.20.3
-
+  file_selector: ^1.1.0
+  google_sign_in: ^7.2.0
+  googleapis: ^17.0.0
+  http: ^1.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

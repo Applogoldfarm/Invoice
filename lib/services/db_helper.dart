@@ -1,6 +1,7 @@
 ﻿import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/invoice.dart';
+import 'drive_backup_service.dart';
 
 class DbHelper {
   DbHelper._();
@@ -83,7 +84,7 @@ class DbHelper {
 
   Future<int> saveInvoice(Invoice inv) async {
     final d = await db;
-    return d.transaction((txn) async {
+    final id = await d.transaction((txn) async {
       int id;
       if (inv.id == null) {
         id = await txn.insert('invoices', inv.toMap());
@@ -103,6 +104,8 @@ class DbHelper {
       }
       return id;
     });
+    DriveBackupService.scheduleAutoBackup();
+    return id;
   }
 
   Future<void> setPaid(int id, bool paid) async {
@@ -113,6 +116,7 @@ class DbHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+    DriveBackupService.scheduleAutoBackup();
   }
 
   Future<List<Invoice>> getInvoices() async {
@@ -137,5 +141,47 @@ class DbHelper {
           where: 'invoice_id = ?', whereArgs: [id]);
       await txn.delete('invoices', where: 'id = ?', whereArgs: [id]);
     });
+    DriveBackupService.scheduleAutoBackup();
+  }
+
+  // ---------- Backup / restore ----------
+
+  Future<Map<String, dynamic>> exportAll() async {
+    final d = await db;
+    final inv = await d.query('invoices', orderBy: 'id ASC');
+    final items = await d.query('invoice_items', orderBy: 'id ASC');
+    final st = await d.query('settings');
+    return {
+      'invoices': inv.map((e) => Map<String, dynamic>.from(e)).toList(),
+      'items': items.map((e) => Map<String, dynamic>.from(e)).toList(),
+      'settings': <String, String>{
+        for (final r in st) r['key'] as String: r['value'] as String,
+      },
+    };
+  }
+
+  /// Replaces ALL current data with the backup. Runs in one transaction,
+  /// so if anything is wrong with the file, nothing is changed.
+  Future<int> importAll(
+    List<dynamic> invoices,
+    List<dynamic> items,
+    Map<String, String> settings,
+  ) async {
+    final d = await db;
+    await d.transaction((txn) async {
+      await txn.delete('invoice_items');
+      await txn.delete('invoices');
+      await txn.delete('settings');
+      for (final r in invoices) {
+        await txn.insert('invoices', Map<String, dynamic>.from(r as Map));
+      }
+      for (final r in items) {
+        await txn.insert('invoice_items', Map<String, dynamic>.from(r as Map));
+      }
+      for (final e in settings.entries) {
+        await txn.insert('settings', {'key': e.key, 'value': e.value});
+      }
+    });
+    return invoices.length;
   }
 }
